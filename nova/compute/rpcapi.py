@@ -220,6 +220,7 @@ class ComputeAPI(rpcclient.RpcProxy):
         2.45 - Made resize_instance() take new-world objects
         2.46 - Made finish_resize() take new-world objects
         2.47 - Made finish_revert_resize() take new-world objects
+             - Added get_rdp_console method
     '''
 
     #
@@ -433,6 +434,13 @@ class ComputeAPI(rpcclient.RpcProxy):
                                     version=_get_version('2.24'))
         return cctxt.call(ctxt, 'get_spice_console',
                           instance=instance_p, console_type=console_type)
+
+    def get_rdp_console(self, ctxt, instance, console_type):
+        version = '2.47'
+        cctxt = self.client.prepare(server=_compute_host(None, instance),
+                version=version)
+        return cctxt.call(ctxt, 'get_rdp_console',
+                          instance=instance, console_type=console_type)
 
     def validate_console_port(self, ctxt, instance, port, console_type):
         instance_p = jsonutils.to_primitive(instance)

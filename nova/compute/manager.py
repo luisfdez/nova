@@ -212,6 +212,8 @@ CONF.import_opt('my_ip', 'nova.netconf')
 CONF.import_opt('vnc_enabled', 'nova.vnc')
 CONF.import_opt('enabled', 'nova.spice', group='spice')
 CONF.import_opt('enable', 'nova.cells.opts', group='cells')
+CONF.import_opt('enabled', 'nova.rdp', group='rdp')
+CONF.import_opt('html5_proxy_base_url', 'nova.rdp', group='rdp')
 
 LOG = logging.getLogger(__name__)
 
@@ -3606,12 +3608,47 @@ class ComputeManager(manager.SchedulerDependentManager):
         return connect_info
 
     @rpc_common.client_exceptions(exception.ConsoleTypeInvalid,
+            exception.InstanceNotReady, exception.InstanceNotFound,
+            NotImplementedError)
+    @wrap_exception()
+    @wrap_instance_fault
+    def get_rdp_console(self, context, console_type, instance):
+        """Return connection information for a RDP console."""
+        context = context.elevated()
+        LOG.debug(_("Getting RDP console"), instance=instance)
+        token = str(uuid.uuid4())
+
+        if not CONF.rdp.enabled:
+            raise exception.ConsoleTypeInvalid(console_type=console_type)
+
+        if console_type == 'rdp-html5':
+            access_url = '%s?token=%s' % (CONF.rdp.html5_proxy_base_url,
+                                          token)
+        else:
+            raise exception.ConsoleTypeInvalid(console_type=console_type)
+
+        try:
+            # Retrieve connect info from driver, and then decorate with our
+            # access info token
+            connect_info = self.driver.get_rdp_console(context, instance)
+            connect_info['token'] = token
+            connect_info['access_url'] = access_url
+        except exception.InstanceNotFound:
+            if instance['vm_state'] != vm_states.BUILDING:
+                raise
+            raise exception.InstanceNotReady(instance_id=instance['uuid'])
+
+        return connect_info
+
+    @rpc_common.client_exceptions(exception.ConsoleTypeInvalid,
             exception.InstanceNotReady, exception.InstanceNotFound)
     @wrap_exception()
     @wrap_instance_fault
     def validate_console_port(self, ctxt, instance, port, console_type):
         if console_type == "spice-html5":
             console_info = self.driver.get_spice_console(instance)
+        elif console_type == "rdp-html5":
+            console_info = self.driver.get_rdp_console(ctxt, instance)
         else:
             console_info = self.driver.get_vnc_console(instance)
 
@@ -4171,7 +4208,7 @@ class ComputeManager(manager.SchedulerDependentManager):
                    "This error can be safely ignored."),
                  instance=instance_ref)
 
-        if CONF.vnc_enabled or CONF.spice.enabled:
+        if CONF.vnc_enabled or CONF.spice.enabled or CONF.rdp.enabled:
             if CONF.cells.enable:
                 self.cells_rpcapi.consoleauth_delete_tokens(ctxt,
                         instance_ref['uuid'])
