@@ -50,6 +50,8 @@ from nova.openstack.common import timeutils
 from nova.openstack.common import uuidutils
 from nova import utils
 
+from nova.network import model as network_model
+
 
 cell_messaging_opts = [
     cfg.IntOpt('max_hop_count',
@@ -994,6 +996,14 @@ class _BroadcastMessageMethods(_BaseMessageMethods):
                 self.db.instance_create(message.ctxt, instance,
                                         legacy=False)
         if info_cache:
+
+            network_info = info_cache.get('network_info')
+            if isinstance(network_info, list):
+                if not isinstance(network_info, network_model.NetworkInfo):
+                    network_info = network_model.NetworkInfo.hydrate(
+                            network_info)
+                info_cache['network_info'] = network_info.json()
+
             try:
                 self.db.instance_info_cache_update(
                         message.ctxt, instance_uuid, info_cache)

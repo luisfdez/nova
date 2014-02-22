@@ -170,8 +170,12 @@ class IptablesFirewallDriver(FirewallDriver):
     def unfilter_instance(self, instance, network_info):
         if self.instances.pop(instance['id'], None):
             # NOTE(vish): use the passed info instead of the stored info
+
             self.network_infos.pop(instance['id'])
+            self.network_infos[instance['id']] = network_info
             self.remove_filters_for_instance(instance)
+            self.network_infos.pop(instance['id'])
+
             self.iptables.apply()
         else:
             LOG.info(_('Attempted to unfilter instance which is not '
@@ -250,12 +254,32 @@ class IptablesFirewallDriver(FirewallDriver):
         self._add_filters('local', ipv4_rules, ipv6_rules)
         self._add_filters(chain_name, inst_ipv4_rules, inst_ipv6_rules)
 
+        try:
+            v4_subnets = self._get_subnets(network_info, 4)
+            ips_v4 = [ip['address'] for subnet in v4_subnets
+                                for ip in subnet['ips']]
+            self.iptables.ipv4['filter'].add_rule('FORWARD', '-s %s -d 0.0.0.0/0 -j ACCEPT' % (ips_v4[0],))
+        except Exception as e:
+            LOG.warn(_("Failed to add firewall rule. %s" % str(e)))
+            pass
+
+
     def remove_filters_for_instance(self, instance):
         chain_name = self._instance_chain_name(instance)
 
         self.iptables.ipv4['filter'].remove_chain(chain_name)
         if CONF.use_ipv6:
             self.iptables.ipv6['filter'].remove_chain(chain_name)
+
+        network_info = self.network_infos[instance['id']]
+        try:
+            v4_subnets = self._get_subnets(network_info, 4)
+            ips_v4 = [ip['address'] for subnet in v4_subnets
+                                for ip in subnet['ips']]
+            self.iptables.ipv4['filter'].remove_rule('FORWARD', '-s %s -d 0.0.0.0/0 -j ACCEPT' % (ips_v4[0],))
+        except Exception as e:
+            LOG.warn(_("Cannot remove firewall rule. %s" % str(e)))
+
 
     @staticmethod
     def _security_group_chain_name(security_group_id):

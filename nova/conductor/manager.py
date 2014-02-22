@@ -144,6 +144,11 @@ class ConductorManager(manager.Manager):
             self.db.instance_get_by_uuid(context, instance_uuid,
                 columns_to_join))
 
+    @rpc_common.client_exceptions(exception.InstanceNotFound)
+    def instance_metadata_get(self, context, instance_uuid):
+        return jsonutils.to_primitive(
+            self.db.instance_metadata_get(context, instance_uuid))
+
     # NOTE(hanlind): This method can be removed in v2.0 of the RPC API.
     def instance_get_all(self, context):
         return jsonutils.to_primitive(self.db.instance_get_all(context))

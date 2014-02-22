@@ -38,7 +38,9 @@ class ImagePropertiesFilter(filters.BaseHostFilter):
 
     def _instance_supported(self, host_state, image_props):
         img_arch = image_props.get('architecture', None)
-        img_h_type = image_props.get('hypervisor_type', None)
+
+        img_h_type = image_props.get('hypervisor_type', 'qemu')
+
         img_vm_mode = image_props.get('vm_mode', None)
         checked_img_props = (img_arch, img_h_type, img_vm_mode)
 
