@@ -942,6 +942,7 @@ class ComputeManager(manager.SchedulerDependentManager):
             if ('cern-services' in meta.keys()\
                 and meta['cern-services'].lower() != 'false')\
                 or ('cern-services' not in meta.keys()):
+                time.sleep(5)
                 client = cern.ActiveDirectory()
                 client.register(instance_hostname)
                 
