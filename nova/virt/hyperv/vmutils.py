@@ -144,6 +144,10 @@ class VMUtils(object):
     def vm_exists(self, vm_name):
         return self._lookup_vm(vm_name) is not None
 
+    def get_vm_id(self, vm_name):
+        vm = self._lookup_vm_check(vm_name)
+        return vm.Name
+
     def _get_vm_setting_data(self, vm):
         vmsettings = vm.associators(
             wmi_result_class='Msvm_VirtualSystemSettingData')

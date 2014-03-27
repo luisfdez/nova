@@ -25,6 +25,7 @@ from nova.virt import driver
 from nova.virt.hyperv import hostops
 from nova.virt.hyperv import livemigrationops
 from nova.virt.hyperv import migrationops
+from nova.virt.hyperv import rdpconsoleops
 from nova.virt.hyperv import snapshotops
 from nova.virt.hyperv import vmops
 from nova.virt.hyperv import volumeops
@@ -42,6 +43,7 @@ class HyperVDriver(driver.ComputeDriver):
         self._snapshotops = snapshotops.SnapshotOps()
         self._livemigrationops = livemigrationops.LiveMigrationOps()
         self._migrationops = migrationops.MigrationOps()
+        self._rdpconsoleops = rdpconsoleops.RDPConsoleOps()
 
     def init_host(self, host):
         pass
@@ -190,6 +192,10 @@ class HyperVDriver(driver.ComputeDriver):
 
     def get_host_ip_addr(self):
         return self._hostops.get_host_ip_addr()
+
+    def get_rdp_console(self, context, instance):
+        LOG.debug(_("(Driver): get_rdp_console called"), instance=instance)
+        return self._rdpconsoleops.get_rdp_console(instance)
 
     def get_console_output(self, instance):
         LOG.debug(_("get_console_output called"), instance=instance)
