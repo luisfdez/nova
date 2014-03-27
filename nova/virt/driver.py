@@ -296,6 +296,14 @@ class ComputeDriver(object):
         # TODO(Vek): Need to pass context in for access to auth_token
         raise NotImplementedError()
 
+    def get_rdp_console(self, context, instance):
+        """Get connection info for a rdp console.
+
+        :param context: security context
+        :param instance: nova.objects.instance.Instance
+        """
+        raise NotImplementedError()
+
     def get_diagnostics(self, instance):
         """Return data about VM diagnostics."""
         # TODO(Vek): Need to pass context in for access to auth_token
