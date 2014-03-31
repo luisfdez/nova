@@ -219,6 +219,10 @@ class NWFilterFirewall(base_firewall.FirewallDriver):
         filter_set = ['no-mac-spoofing',
                       'no-ip-spoofing',
                       'no-arp-spoofing']
+
+        self._define_filter(self.nova_no_nd_reflection_filter)
+        filter_set.append('nova-no-nd-reflection')
+
         if CONF.use_ipv6:
             self._define_filter(self.nova_no_nd_reflection_filter)
             filter_set.append('nova-no-nd-reflection')
@@ -319,8 +323,11 @@ class IptablesFirewallDriver(base_firewall.IptablesFirewallDriver):
         # Overriding base class method for applying nwfilter operation
         if self.instances.pop(instance['id'], None):
             # NOTE(vish): use the passed info instead of the stored info
-            self.network_infos.pop(instance['id'])
+
+            self.network_infos[instance['id']] = network_info
             self.remove_filters_for_instance(instance)
+            self.network_infos.pop(instance['id'])
+
             self.iptables.apply()
             self.nwfilter.unfilter_instance(instance, network_info)
         else:

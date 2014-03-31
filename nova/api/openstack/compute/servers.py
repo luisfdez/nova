@@ -40,6 +40,9 @@ from nova.openstack.common import uuidutils
 from nova import policy
 from nova import utils
 
+import nova.image.glance
+from nova import cern
+
 
 server_opts = [
     cfg.BoolOpt('enable_instance_password',
@@ -759,6 +762,78 @@ class Controller(wsgi.Controller):
 
         image_uuid = self._image_from_req_data(body)
 
+        if len(name) > 64:
+            msg = "Instance name too long"
+            raise exc.HTTPBadRequest(explanation=msg)
+
+        if name.lower() != (utils.sanitize_hostname(name)).lower():
+            msg = "Instance name is not a valid hostname"
+            raise exc.HTTPBadRequest(explanation=msg)
+
+        if image_uuid != '':
+            image_service = nova.image.glance.get_default_image_service()
+            image_metadata = image_service.show(context, image_uuid)
+        else:
+            image_metadata = {}
+
+        if 'properties' in image_metadata.keys()\
+                         and 'os' in image_metadata['properties'].keys():
+            if (image_metadata['properties']['os']).lower() == 'windows' and\
+                                                            len(name) > 15:
+                msg = ("Instance name too long. Windows images only support "
+                  "15 character hostname")
+                raise exc.HTTPBadRequest(explanation=msg)
+
+        client_landb = cern.LanDB()
+        client_xldap = cern.Xldap()
+
+        if not client_landb.device_exists(name):
+            pass
+        else:
+            msg = "Hostname already in use"
+            raise exc.HTTPBadRequest(explanation=msg)
+
+        try:
+            socket.gethostbyname(name)
+        except:
+            pass
+        else:
+            msg = "Hostname already in DNS"
+            raise exc.HTTPBadRequest(explanation=msg)
+
+        metadata = server_dict.get('metadata', {})
+
+        if 'landb-responsible' in metadata.keys() and\
+            metadata['landb-responsible'] != '':
+            user_id = client_xldap.user_exists(metadata['landb-responsible'])
+            egroup_id = client_xldap.egroup_exists(metadata['landb-responsible'])
+            if user_id or egroup_id:
+                pass
+            else:
+                msg = "Cannot find user/egroup for responsible user"
+                raise exc.HTTPBadRequest(explanation=msg)
+
+        if 'landb-mainuser' in metadata.keys() and\
+            metadata['landb-mainuser'] != '':
+            user_id = client_xldap.user_exists(metadata['landb-mainuser'])
+            egroup_id = client_xldap.egroup_exists(metadata['landb-mainuser'])
+            if user_id or egroup_id:
+                pass
+            else:
+                msg = "Cannot find user/egroup for responsible user"
+                raise exc.HTTPBadRequest(explanation=msg)
+
+        if 'landb-alias' in metadata.keys():
+            new_alias = [x.strip() for x in metadata['landb-alias'].split(',')]
+            for alias in new_alias:
+                try:
+                    if client_landb.device_exists(alias):
+                        raise
+                except:
+                    msg = _("Alias - %s - The device already exists or is not "
+                            "a valid hostname" % str(alias))
+                    raise exc.HTTPBadRequest(explanation=msg)
+
         personality = server_dict.get('personality')
         config_drive = None
         if self.ext_mgr.is_loaded('os-config-drive'):
@@ -883,6 +958,22 @@ class Controller(wsgi.Controller):
             msg = _('min_count must be <= max_count')
             raise exc.HTTPBadRequest(explanation=msg)
 
+        if max_count > min_count and (len(name) + 37) > 64:
+            msg = ("Instance name too long for multiple instances creation. "
+                   "Only 27 characters allowed.")
+            raise exc.HTTPBadRequest(explanation=msg)
+
+        if max_count > min_count and 'properties' in image_metadata.keys()\
+                         and 'os' in image_metadata['properties'].keys():
+            if (image_metadata['properties']['os']).lower() == 'windows':
+                msg = ("Windows images don't support multiple instances "
+                       "creation")
+                raise exc.HTTPBadRequest(explanation=msg)
+
+        if max_count > min_count and 'landb-alias' in metadata.keys():
+            msg = ("With multiple instances is not possible to set alias.")
+            raise exc.HTTPBadRequest(explanation=msg)
+
         auto_disk_config = False
         if self.ext_mgr.is_loaded('OS-DCF'):
             auto_disk_config = server_dict.get('auto_disk_config')
@@ -996,9 +1087,9 @@ class Controller(wsgi.Controller):
         update_dict = {}
 
         if 'name' in body['server']:
-            name = body['server']['name']
-            self._validate_server_name(name)
-            update_dict['display_name'] = name.strip()
+
+            msg = _("Hostname cannot be updated.")
+            raise exc.HTTPBadRequest(explanation=msg)
 
         if 'accessIPv4' in body['server']:
             access_ipv4 = body['server']['accessIPv4']

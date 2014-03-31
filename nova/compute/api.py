@@ -73,6 +73,8 @@ from nova import servicegroup
 from nova import utils
 from nova import volume
 
+from nova import cern
+
 LOG = logging.getLogger(__name__)
 
 get_notifier = functools.partial(notifier.get_notifier, service='compute')
@@ -84,6 +86,12 @@ compute_opts = [
                 default=False,
                 help='Allow destination machine to match source for resize. '
                      'Useful when testing in single-host environments.'),
+
+    cfg.ListOpt('default_schedule_zones',
+               deprecated_name='default_schedule_zone',
+               default=[],
+               help='availability zone to use when user doesn\'t specify one'),
+
     cfg.BoolOpt('allow_migrate_to_same_host',
                 default=False,
                 help='Allow migrate machine to the same host. '
@@ -499,8 +507,8 @@ class API(base.Base):
                 raise exception.InvalidInput(
                         reason="Unable to parse availability_zone")
 
-        if not availability_zone:
-            availability_zone = CONF.default_schedule_zone
+#        if not availability_zone:
+#            availability_zone = CONF.default_schedule_zone
 
         if forced_host:
             check_policy(context, 'create:forced_host', {})
@@ -1079,7 +1087,9 @@ class API(base.Base):
             instance.hostname = utils.sanitize_hostname(hostname)
 
     def _default_display_name(self, instance_uuid):
-        return "Server %s" % instance_uuid
+
+        return "server-%s" % instance_uuid
+
 
     def _populate_instance_for_create(self, instance, image,
                                       index, security_groups, instance_type):
@@ -2167,6 +2177,21 @@ class API(base.Base):
                                            migration.source_compute,
                                            reservations)
 
+        if CONF.network_manager != 'nova.network.manager.CernManager':
+            return
+
+        try:
+            fixed_ips = self.db.fixed_ip_get_by_instance(context,
+                                                         instance['uuid'])
+            vm_ip = (fixed_ips[0])['address']
+
+            client = cern.LanDB()
+            host = (instance['host'].lower()).replace('.cern.ch', '')
+            device_name = client.device_hostname(vm_ip)
+            client.device_migrate(device_name, host)
+        except Exception as e:
+            LOG.error(_("Cannot migrate VM in landb - %s" % str(e)))
+
     @staticmethod
     def _resize_quota_delta(context, new_instance_type,
                             old_instance_type, sense, compare):
@@ -2304,7 +2329,9 @@ class API(base.Base):
         if not same_instance_type and new_instance_type.get('disabled'):
             raise exception.FlavorNotFound(flavor_id=flavor_id)
 
-        if same_instance_type and flavor_id:
+
+        if same_instance_type and flavor_id and self.cell_type != 'compute':
+
             raise exception.CannotResizeToSameFlavor()
 
         # ensure there is sufficient headroom for upsizes
@@ -2338,6 +2365,11 @@ class API(base.Base):
         instance.save(expected_task_state=None)
 
         filter_properties = {'ignore_hosts': []}
+
+        ipservice = self.db.cern_netcluster_get(context, instance['host'])
+        ignore_hosts = self.db.cern_ignore_hosts(context,
+                                                 ipservice['netcluster'])
+        filter_properties['ignore_hosts'].extend(ignore_hosts)
 
         if not CONF.allow_resize_to_same_host:
             filter_properties['ignore_hosts'].append(instance['host'])
@@ -2825,6 +2857,50 @@ class API(base.Base):
                           task_state=None)
     def delete_instance_metadata(self, context, instance, key):
         """Delete the given metadata item from an instance."""
+#  CERN
+        landb_update = False
+        landb_description = None
+        landb_responsible = None
+        landb_mainuser = None
+
+        if key == 'landb-alias':
+            new_alias = []
+            client = cern.LanDB()
+            client.alias_update(instance['hostname'], new_alias)
+
+        if key == 'landb-mainuser':
+            landb_update = True
+
+            client = cern.Xldap()
+            user_id = client.user_exists(instance['user_id'])
+
+            if user_id:
+                landb_mainuser = {'PersonID':user_id}
+            else:
+                LOG.error(_("Cannot find user/egroup for main user. %s" % str(e)))
+                raise exception.CernInvalidUserEgroup()
+
+        if key == 'landb-responsible':
+            landb_update = True
+
+            client = cern.Xldap()
+            user_id = client.user_exists(instance['user_id'])
+
+            if user_id:
+                landb_responsible = {'PersonID':user_id}
+            else:
+                LOG.error(_("Cannot find user/egroup for responsible user. %s" % str(e)))
+                raise exception.CernInvalidUserEgroup()
+
+        if key == 'landb-description':
+            landb_update = True
+            landb_description = ''
+
+        if landb_update == True:
+            client = cern.LanDB()
+            client.vm_update(instance['hostname'], description=landb_description,
+                responsible_person=landb_responsible, user_person=landb_mainuser)
+
         self.db.instance_metadata_delete(context, instance['uuid'], key)
         instance['metadata'] = {}
         notifications.send_update(context, instance, instance)
@@ -2853,6 +2929,57 @@ class API(base.Base):
             _metadata.update(metadata)
 
         self._check_metadata_properties_quota(context, _metadata)
+
+        landb_update = False
+        landb_description = None
+        landb_responsible = None
+        landb_mainuser = None
+
+        if 'landb-alias' in metadata.keys():
+            new_alias = [x.strip() for x in metadata['landb-alias'].split(',')]
+            client = cern.LanDB()
+            client.alias_update(instance['hostname'], new_alias)
+
+        if 'landb-mainuser' in metadata.keys():
+            landb_update = True
+
+            client = cern.Xldap()
+            user_id = client.user_exists(metadata['landb-mainuser'])
+            egroup_id = client.egroup_exists(metadata['landb-mainuser'])
+
+            if user_id:
+                landb_mainuser = {'PersonID':user_id}
+            elif egroup_id:
+                landb_mainuser = {'FirstName':'E-GROUP', 'Name':egroup_id}
+            else:
+                LOG.error(_("Cannot find user/egroup for main user"))
+                raise exception.CernInvalidUserEgroup()
+
+        if 'landb-responsible' in metadata.keys():
+            landb_update = True
+
+            client = cern.Xldap()
+            user_id = client.user_exists(metadata['landb-responsible'])
+            egroup_id = client.egroup_exists(metadata['landb-responsible'])
+
+            if user_id:
+                landb_responsible = {'PersonID':user_id}
+            elif egroup_id:
+                landb_responsible = {'FirstName':'E-GROUP', 'Name':egroup_id}
+            else:
+                LOG.error(_("Cannot find user/egroup for responsible user"))
+                raise exception.CernInvalidUserEgroup()
+
+        if 'landb-description' in metadata.keys():
+            landb_update = True
+            landb_description = metadata['landb-description']
+
+        # get previous vm information
+        if landb_update == True:
+            client = cern.LanDB()
+            client.vm_update(instance['hostname'], description=landb_description,
+                responsible_person=landb_responsible, user_person=landb_mainuser)
+
         metadata = self.db.instance_metadata_update(context, instance['uuid'],
                                          _metadata, True)
         instance['metadata'] = metadata

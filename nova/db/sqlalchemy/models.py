@@ -866,6 +866,18 @@ class FixedIp(BASE, NovaBase):
                                 'FixedIp.deleted == 0,'
                                 'Instance.deleted == 0)')
 
+    mac = Column(String(255), unique=True)
+    netcluster = Column(String(255))
+
+
+
+class CernNetwork(BASE, NovaBase):
+    """Represents an Ip Service configuration at CERN."""
+    __tablename__ = 'cern_network'
+    id = Column(Integer, primary_key=True)
+    netcluster = Column(String(255))
+    host = Column(String(255), unique=True)
+
 
 class FloatingIp(BASE, NovaBase):
     """Represents a floating ip that dynamically forwards to a fixed ip."""
