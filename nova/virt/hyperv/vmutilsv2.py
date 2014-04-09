@@ -84,10 +84,13 @@ class VMUtilsV2(vmutils.VMUtils):
 
         return instance_notes
 
-    def _create_vm_obj(self, vs_man_svc, vm_name, notes):
+    def _create_vm_obj(self, vs_man_svc, vm_name, notes, dynamic_memory_ratio):
         vs_data = self._conn.Msvm_VirtualSystemSettingData.new()
         vs_data.ElementName = vm_name
         vs_data.Notes = notes
+
+        if dynamic_memory_ratio > 1:
+            vs_data.VirtualNumaEnabled = False
 
         (job_path,
          vm_path,
