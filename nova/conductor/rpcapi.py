@@ -153,6 +153,11 @@ class ConductorAPI(rpcclient.RpcProxy):
         cctxt = self.client.prepare(version=version)
         return cctxt.call(context, 'instance_get_by_uuid', **kwargs)
 
+    def instance_metadata_get(self, context, instance_uuid):
+        cctxt = self.client.prepare(version='1.2')
+        return cctxt.call(context, 'instance_metadata_get',
+                          instance_uuid=instance_uuid)
+
     def migration_get_in_progress_by_host_and_node(self, context,
                                                    host, node):
         cctxt = self.client.prepare(version='1.31')

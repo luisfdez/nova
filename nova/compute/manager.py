@@ -84,6 +84,9 @@ from nova.virt import virtapi
 from nova import volume
 from nova.volume import encryptors
 
+import time
+from nova import cern
+
 
 compute_opts = [
     cfg.StrOpt('console_host',
@@ -174,6 +177,11 @@ timeout_opts = [
                default=0,
                help="Automatically confirm resizes after N seconds. "
                     "Set to 0 to disable."),
+
+    cfg.IntOpt('landb_dns_timeout',
+               default=1200,
+               help="DNS timeout in seconds.")
+
 ]
 
 running_deleted_opts = [
@@ -214,6 +222,8 @@ CONF.import_opt('enabled', 'nova.spice', group='spice')
 CONF.import_opt('enable', 'nova.cells.opts', group='cells')
 CONF.import_opt('enabled', 'nova.rdp', group='rdp')
 CONF.import_opt('html5_proxy_base_url', 'nova.rdp', group='rdp')
+
+CONF.import_opt('cern_landb', 'nova.network.manager')
 
 LOG = logging.getLogger(__name__)
 
@@ -923,6 +933,40 @@ class ComputeManager(manager.SchedulerDependentManager):
 
         return [_decode(f) for f in injected_files]
 
+    def _cern_ready(self, context, instance):
+            if instance['hostname'] == "server-"+str(instance['uuid']):
+                return
+
+            if not CONF.cern_landb:
+                return
+
+            instance_hostname = str(instance['hostname'])
+            meta = self.conductor_api.instance_metadata_get(context,
+                                                            instance['uuid'])
+            if ('cern-update-hostname' in meta.keys()\
+                        and meta['cern-update-hostname'].lower() == 'false'):
+                return
+
+            if ('cern-services' in meta.keys()\
+                and meta['cern-services'].lower() != 'false')\
+                or ('cern-services' not in meta.keys()):
+                time.sleep(5)
+                client = cern.ActiveDirectory()
+                client.register(instance_hostname)
+
+                wait_time = 0
+                while(wait_time < CONF.landb_dns_timeout):
+                    try:
+                        socket.gethostbyname(instance_hostname)
+                        break
+                    except:
+                        LOG.info(_("Waiting for DNS - %s" % instance['uuid']))
+                        time.sleep(15)
+                        wait_time=wait_time+15
+                else:
+                    LOG.error(_("DNS update failed - %s" % instance['uuid']))
+                    raise exception.CernDNS()
+
     def _run_instance(self, context, request_spec,
                       filter_properties, requested_networks, injected_files,
                       admin_password, is_first_time, node, instance,
@@ -1026,6 +1070,8 @@ class ComputeManager(manager.SchedulerDependentManager):
                 network_info = self._allocate_network(context, instance,
                         requested_networks, macs, security_groups,
                         dhcp_options)
+
+                self._cern_ready(context, instance)
 
                 self._instance_update(
                         context, instance['uuid'],
