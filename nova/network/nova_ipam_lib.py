@@ -97,12 +97,11 @@ class NeutronNovaIPAMLib(object):
         admin_context = context.elevated()
         network = network_obj.Network.get_by_uuid(admin_context, net_id)
         vif_rec = vif_obj.VirtualInterface.get_by_uuid(context, vif_id)
-        if network.cidr_v6 and vif_rec and vif_rec.address:
-            ip = ipv6.to_global(network.cidr_v6,
-                                vif_rec.address,
-                                project_id)
-            return [ip]
-        return []
+# CERN
+        fixed_ips = fixed_ip_obj.FixedIPList.get_by_virtual_interface_id(
+            context, vif_rec.id)
+        return [str(fixed_ip.address_v6) for fixed_ip in fixed_ips]
+# CERN
 
     def get_floating_ips_by_fixed_address(self, context, fixed_address):
         return floating_ip_obj.FloatingIPList.get_by_fixed_address(

@@ -167,6 +167,13 @@ class ConductorAPI(object):
         cctxt = self.client.prepare()
         return cctxt.call(context, 'instance_get_by_uuid', **kwargs)
 
+# CERN
+    def instance_metadata_get(self, context, instance_uuid):
+        cctxt = self.client.prepare()
+        return cctxt.call(context, 'instance_metadata_get',
+                          instance_uuid=instance_uuid)
+# CERN
+
     def migration_get_in_progress_by_host_and_node(self, context,
                                                    host, node):
         cctxt = self.client.prepare()

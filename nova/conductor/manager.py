@@ -144,7 +144,12 @@ class ConductorManager(manager.Manager):
         return jsonutils.to_primitive(
             self.db.instance_get_by_uuid(context, instance_uuid,
                 columns_to_join))
-
+# CERN
+    @messaging.expected_exceptions(exception.InstanceNotFound)
+    def instance_metadata_get(self, context, instance_uuid):
+        return jsonutils.to_primitive(
+            self.db.instance_metadata_get(context, instance_uuid))
+# CERN
     # NOTE(hanlind): This method can be removed in v2.0 of the RPC API.
     def instance_get_all(self, context):
         return jsonutils.to_primitive(self.db.instance_get_all(context))
@@ -890,7 +895,10 @@ class _ConductorManagerV2Proxy(object):
                              columns_to_join):
         return self.manager.instance_get_by_uuid(context, instance_uuid,
                 columns_to_join)
-
+# CERN
+    def instance_metadata_get(self, context, instance_uuid):
+        return self.manager.instance_metadata_get(context, instance_uuid)
+# CERN
     def migration_get_in_progress_by_host_and_node(self, context,
                                                    host, node):
         return self.manager.migration_get_in_progress_by_host_and_node(context,

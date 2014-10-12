@@ -70,7 +70,10 @@ class LocalAPI(object):
                              columns_to_join=None):
         return self._manager.instance_get_by_uuid(context, instance_uuid,
                 columns_to_join)
-
+# CERN
+    def instance_metadata_get(self, context, instance_uuid):
+        return self._manager.instance_metadata_get(context, instance_uuid)
+# CERN
     def instance_destroy(self, context, instance):
         return self._manager.instance_destroy(context, instance)
 
