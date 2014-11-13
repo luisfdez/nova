@@ -1195,7 +1195,6 @@ class ComputeManager(manager.Manager):
         if ('cern-services' in meta.keys()\
             and meta['cern-services'].lower() != 'false')\
             or ('cern-services' not in meta.keys()):
-            time.sleep(5)
             client = cern.ActiveDirectory()
             client.register(instance_hostname)
 
@@ -1344,6 +1343,8 @@ class ComputeManager(manager.Manager):
                         requested_networks, macs, security_groups,
                         dhcp_options)
 # CERN
+                network_info.wait(do_raise=True)
+                LOG.debug(_("Network allocated for instance %s"), instance['uuid'])
                 self._cern_ready(context, instance)
 # CERN
                 self._instance_update(
