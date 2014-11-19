@@ -34,7 +34,7 @@ class TargetCellHypervisorFilter(filters.BaseCellFilter):
         hypervisor_type = image_properties.get(
             'hypervisor_type')
 
-        if hypervisor_type == None:
+        if hypervisor_type == None or hypervisor_type.lower() != 'hyperv':
             hypervisor_type = 'qemu'
 
         filtered_cells = []

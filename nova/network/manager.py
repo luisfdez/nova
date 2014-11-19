@@ -2186,9 +2186,9 @@ class CernManager(NetworkManager):
 
         nw_cluster = self.db.cern_netcluster_get(admin_context,
                                                  host)['netcluster']
-
+        fixed_ips = self.db.cern_mac_ip_get(admin_context, nw_cluster, host)
         for i in range(20):
-            fixed_ip = self.db.cern_mac_ip_get(admin_context, nw_cluster, host)
+            fixed_ip = random.choice(fixed_ips)
             vm_ip = fixed_ip['address']
             vm_mac = fixed_ip['mac']
             network = networks[0]
@@ -2216,7 +2216,8 @@ class CernManager(NetworkManager):
         vifx = get_vif(admin_context, instance_uuid, network['id'])
         values = {'allocated': True,
                   'virtual_interface_id': vifx['id'],
-                  'instance_uuid': instance_uuid}
+                  'instance_uuid': instance_uuid,
+                  'host': host}
         self.db.fixed_ip_update(admin_context, vm_ip, values)
 
         client_landb = cern.LanDB()

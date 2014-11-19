@@ -1606,6 +1606,6 @@ class CernLanDBUpdate(NovaException):
     msg_fmt = _("Unable to update LanDB")
 
 class CernActiveDirectory(NovaException):
-    msg_fmt = _("Unable to update Active Directory")
+    msg_fmt = _("Network Error")
 
 # CERN

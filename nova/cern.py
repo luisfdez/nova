@@ -369,9 +369,9 @@ class ActiveDirectory():
         try:
             result = self.client.service.DeleteComputer(hostname)
             if result != None:
-                LOG.error(_("AD delete failed - %s - %s" % (hostname, result)))
+                LOG.warn(_("AD delete failed - %s - %s" % (hostname, result)))
         except Exception as e:
-            LOG.error(_("Cannot delete VM from AD. %s" % str(e)))
+            LOG.warn(_("Cannot delete VM from AD. %s" % str(e)))
 
 class Dns():
     def gethostbyname(self, hostname):

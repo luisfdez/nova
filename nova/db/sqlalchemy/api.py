@@ -6088,22 +6088,16 @@ def cern_netcluster_get(context, xhost):
 @require_context
 def cern_mac_ip_get(context, xipservice, host):
     session = get_session()
-    with session.begin():
-        fixed_ip_ref = session.query(models.FixedIp).\
-                               filter_by(reserved=False).\
-                               filter_by(deleted=False).\
-                               filter_by(allocated=False).\
-                               filter_by(netcluster=xipservice).\
-                               with_lockmode('update').\
-                               first()
+    fixed_ips = session.query(models.FixedIp).\
+                        filter_by(reserved=False).\
+                        filter_by(deleted=False).\
+                        filter_by(allocated=False).\
+                        filter_by(netcluster=xipservice).\
+                        all()
+    if not fixed_ips:
+        raise exception.NoMoreFixedIps()
 
-        if not fixed_ip_ref:
-            raise exception.NoMoreFixedIps()
-
-        if host:
-            fixed_ip_ref.host = host
-        session.add(fixed_ip_ref)
-    return fixed_ip_ref
+    return fixed_ips
 
 
 @require_context

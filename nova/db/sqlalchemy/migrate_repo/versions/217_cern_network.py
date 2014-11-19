@@ -38,7 +38,7 @@ cern_network = Table('cern_network', meta,
 # (fixed_ips)
 column_mac = Column('mac',  String(255))
 column_netcluster = Column('netcluster',  String(255))
-column_address_v6 = Column('netcluster',  String(255))
+column_address_v6 = Column('address_v6',  String(255))
 
 
 def upgrade(migrate_engine):
@@ -60,6 +60,11 @@ def upgrade(migrate_engine):
 
     try:
         table.create_column(column_netcluster)
+    except Exception:
+        pass
+
+    try:
+        table.create_column(column_address_v6)
     except Exception:
         pass
 
